@@ -1,0 +1,4 @@
+{
+  "controller": "controller/admin/${tablename}",
+  "do": "dal/${tablename}/${TableName}.json"
+}
