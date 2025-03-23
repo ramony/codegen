@@ -1,3 +1,11 @@
-public class $!{TableName} {
+$!package("controller.$!{tablepath}")
+$!save("controller/$!{tablepath}/$!{TableController}.java")
+
+
+## controller
+#set($TableController = "$!{TableName}Controller")
+
+
+public class $!{TableController} {
   
 }

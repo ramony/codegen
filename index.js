@@ -1,19 +1,9 @@
-const mysql = require('mysql2');
-
-const { parse, render } = require('velocityjs');
-const fs = require('fs');
 const path = require('path');
+const mysql = require('mysql2');
+const { render } = require('velocityjs');
 
-// 从 JSON 文件读取 MySQL 配置
-const readJsonFile = (jsonFile) => {
-  try {
-    const data = fs.readFileSync(jsonFile, 'utf8');
-    return JSON.parse(data);
-  } catch (err) {
-    console.error('读取配置文件失败:', err);
-    throw err;
-  }
-};
+const { convertToCamelCase, lowerCaseFirstLetter, sortCode } = require("./lib/strings");
+const { readFile, readJsonFile, writeFile, listFile } = require("./lib/files");
 
 // 连接到 MySQL 数据库
 const connectToDatabase = (config) => {
@@ -26,41 +16,6 @@ const connectToDatabase = (config) => {
   });
 };
 
-// 获取数据库中所有表名
-// const getTables = (connection) => {
-//   return new Promise((resolve, reject) => {
-//     connection.query('SHOW TABLES', (err, results) => {
-//       if (err) {
-//         console.error('获取表名失败:', err);
-//         reject(err);
-//       } else {
-//         const tables = results.map(row => row[Object.keys(row)[0]]);
-//         resolve(tables);
-//       }
-//     });
-//   });
-// };
-
-const getTableComment2 = async (connection, tableName) => {
-  try {
-    // 查询表注释
-    const [rows] = await connection.execute(`
-          SELECT TABLE_COMMENT 
-          FROM INFORMATION_SCHEMA.TABLES 
-          WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
-      `, [config.database, tableName]);
-    if (rows.length > 0) {
-      return rows[0].TABLE_COMMENT;
-    } else {
-      return null;
-    }
-  } catch (error) {
-    console.error('获取表注释时出错:', error);
-    return null;
-  }
-}
-
-
 const getTableComment = async (connection, table) => {
   return new Promise((resolve) => {
     connection.query(`SELECT * 
@@ -70,7 +25,6 @@ const getTableComment = async (connection, table) => {
         console.error(`获取表 ${table} 的comment失败:${err}`);
         resolve(null);
       } else {
-        console.log("bb" + JSON.stringify(results))
         const comments = results.map(row => row.TABLE_COMMENT);
         resolve(comments[0]);
       }
@@ -87,14 +41,12 @@ const getTableFieldsComment = async (connection, table) => {
         console.error(`获取表 ${table} 的comment失败:${err}`);
         resolve(null);
       } else {
-        console.log("bb" + JSON.stringify(results))
         const comments = results.map(row => [row.COLUMN_NAME, row.COLUMN_COMMENT]);
         resolve(Object.fromEntries(comments));
       }
     });
   });
 }
-
 
 // 获取指定表的字段结构
 const getFields = (connection, table) => {
@@ -124,7 +76,6 @@ const loadTables = async (connection, tableNames) => {
     for (const tableName of tableNames) {
       const table = { name: tableName, fields: [] }
       table.comment = await getTableComment(connection, tableName);
-      console.log(`aa ${table.comment}`);
       const fieldsCommentMap = await getTableFieldsComment(connection, tableName);
 
       table.fields = await getFields(connection, tableName);
@@ -141,45 +92,10 @@ const loadTables = async (connection, tableNames) => {
   }
 }
 
-function filterEdgeEmptyStrings(array) {
-  let start = 0;
-  let end = array.length - 1;
-
-  // 找到第一个非空字符串的索引
-  while (start < array.length && array[start] === '') {
-    start++;
-  }
-
-  // 找到最后一个非空字符串的索引
-  while (end >= 0 && array[end] === '') {
-    end--;
-  }
-
-  // 提取从第一个非空字符串到最后一个非空字符串之间的元素
-  const middleArr = array.slice(start, end + 1);
-  const result = [];
-  let hasEmpty = false;
-
-  for (let i = 0; i < middleArr.length; i++) {
-    if (middleArr[i] === '') {
-      if (!hasEmpty) {
-        result.push('');
-        hasEmpty = true;
-      }
-    } else {
-      result.push(middleArr[i]);
-      hasEmpty = false;
-    }
-  }
-
-  return result;
-}
-
-
 const main = async () => {
   const args = process.argv.slice(2);
   if (args.length == 0) {
-    console.log(`需要task配置文件`);
+    console.error(`需要task配置文件`);
     return;
   }
   const config = readJsonFile(args[0]);
@@ -187,21 +103,21 @@ const main = async () => {
   const tables = await loadTables(connection, config.tableNames);
 
   const vmFolder = path.join(__dirname, "templates", config.template);
-  const vmFiles = listVM(vmFolder);
+  const vmFiles = listFile(vmFolder).filter((file) => path.extname(file) === '.vm' && file != "global.vm");
 
-  const globalCotent = readVM(path.join(vmFolder, "global.vm"))
+  const globalCotent = readFile(path.join(vmFolder, "global.vm"))
   const templates = []
-  for (const fileName of vmFiles) {
-    const vmContent = globalCotent + "\n" + readVM(path.join(vmFolder, fileName))
-    templates.push(vmContent)
+  for (const vmFile of vmFiles) {
+    const vmContent = globalCotent + "\n\n" + readFile(path.join(vmFolder, vmFile))
+    templates.push({ vmFile, vmContent })
   }
 
-  const typeMapping = readJsonFile(path.join(__dirname, "typeMapping.json"))
+  const typeMapping = readJsonFile(path.join(__dirname, "./config/typeMapping.json"))
 
   const contexts = dbToJava(tables, typeMapping)
 
   for (const context of contexts) {
-    console.log(JSON.stringify(context))
+    console.log(`\n开始处理表:${context.name}`)
     for (const template of templates) {
       context.save = (fileName) => {
         context.dist = fileName;
@@ -209,50 +125,22 @@ const main = async () => {
       context.package = (pkg) => {
         return "package " + config.prefixPackage + "." + pkg + ";";
       }
-      const output = render(template, context);
+      let output = render(template.vmContent, context);
       if (!context.dist) {
-        console.log("模板输出文件没指定");
+        console.log(`模板${template.vmFile}输出文件没指定`);
         continue;
       }
-      writeFile(path.join(config.dist, context.dist), filterEdgeEmptyStrings(output.split("\n").map(it => it.trimEnd())).join("\n"));
+      if (context.dist.includes("java")) {
+        output = sortCode(output)
+      }
+
+      console.log(`模板${template.vmFile}开始处理`);
+      writeFile(path.join(config.dist, context.dist), output);
     }
   }
 
 };
 
-function writeFile(filePathName, data) {
-  console.log("write data to", filePathName);
-  const filePath = path.dirname(filePathName);
-  // 获取文件名
-  //const fileName = path.basename(filePathName);
-  fs.mkdir(filePath, { recursive: true }, (err) => {
-    if (err) {
-      console.error('创建目录时出错:', err);
-      return;
-    }
-
-    // 目录创建成功后，写入文件
-    fs.writeFile(filePathName, data, (err) => {
-      if (err) {
-        console.error('写入文件时出错:', err);
-        return;
-      }
-      console.log('文件写入成功:', filePath);
-    });
-  });
-
-}
-
-/**
- * field: row.Field,
-          type: row.Type,
-          isnull: row.Null,
-          key: row.Key,
-          def: row.Default,
-          extra: row.Extra
- * @param {*} tables 
- * @returns 
- */
 function dbToJava(tables, typeMapping) {
   return tables.map(it => {
     const TableName = convertToCamelCase(it.name.replace(/^t_/, ""));
@@ -283,48 +171,12 @@ function dbToJava(tables, typeMapping) {
       return source.filter(it => !excludedArray.includes(it.field))
     }
     const importTypes = (fields) => {
-      return fields.filter(it => !it.fullType.includes("java.lang")).map(it => `import ${it.fullType};`).join("\n");
+      const fieldsType = fields.map(it => it.fullType).filter(it => !it.includes("java.lang"));
+      return [...new Set(fieldsType)].map(it => `import ${it};`).join("\n");
     }
-    const result = { TableName, tableName, tableComment, tablepath, tableFields, filter, importTypes };
+    const result = { name: it.name, TableName, tableName, tableComment, tablepath, tableFields, filter, importTypes };
     return result;
   })
 }
-
-
-//abc_def 转换成 AbcDef
-function convertToCamelCase(str) {
-  return str.split('_')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join('');
-}
-
-// AbcDef 转换成 abcDef
-function lowerCaseFirstLetter(str) {
-  return str.charAt(0).toLowerCase() + str.slice(1);
-}
-
-// 读取模板文件
-function readVM(fileName) {
-  const content = fs.readFileSync(fileName, 'utf8');
-  return content;
-}
-
-function listVM(dir) {
-  try {
-    // 读取指定目录下的所有文件和文件夹
-    const files = fs.readdirSync(dir);
-    return files.filter((file) => {
-      // 检查文件扩展名是否为 .vm
-      if (path.extname(file) === '.vm' && file != "global.vm") {
-        // 打印 .vm 文件的完整路径
-        return true;
-      }
-      return false;
-    });
-  } catch (err) {
-    console.error('读取目录时出现错误:', err);
-  }
-}
-
 
 main();
