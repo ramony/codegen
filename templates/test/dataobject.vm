@@ -1,5 +1,5 @@
 $!package("dal.$!{tablepath}")
-$!save("dal/$!{tablepath}/$!{TableName}DO.java")
+$!save("dal/$!{tablepath}/$!{TableDO}.java")
 
 #set($tableFields = $filter($tableFields, ['id']))
 
@@ -8,7 +8,7 @@ $!importTypes($tableFields)
 /***
  * $!{tableComment}
  */
-public class $!{TableName}DO {
+public class $!{TableDO} {
 
   #foreach( $it in $tableFields )
     

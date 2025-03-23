@@ -10,6 +10,13 @@
     "t_test_task1",
     "t_test_task2"
   ],
+  "preSet": [
+    "Controller",
+    "Service",
+    "Mapper",
+    "Convert",
+    "DO"
+  ],
   "template": "test",
   "dist": "dist",
   "prefixPackage": "com.niu"

@@ -114,7 +114,7 @@ const main = async () => {
 
   const typeMapping = readJsonFile(path.join(__dirname, "./config/typeMapping.json"))
 
-  const contexts = dbToJava(tables, typeMapping)
+  const contexts = dbToJava(tables, typeMapping, config.preSet)
 
   for (const context of contexts) {
     console.log(`\n开始处理表:${context.name}`)
@@ -141,7 +141,7 @@ const main = async () => {
 
 };
 
-function dbToJava(tables, typeMapping) {
+function dbToJava(tables, typeMapping, preSet) {
   return tables.map(it => {
     const TableName = convertToCamelCase(it.name.replace(/^t_/, ""));
     const tableName = lowerCaseFirstLetter(TableName);
@@ -175,6 +175,11 @@ function dbToJava(tables, typeMapping) {
       return [...new Set(fieldsType)].map(it => `import ${it};`).join("\n");
     }
     const result = { name: it.name, TableName, tableName, tableComment, tablepath, tableFields, filter, importTypes };
+    for (const pre of preSet) {
+      result["table" + pre] = tableName + pre;
+      result["Table" + pre] = TableName + pre;
+    }
+    //console.log(JSON.stringify(result))
     return result;
   })
 }
