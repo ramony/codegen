@@ -1,0 +1,14 @@
+{
+  "database": {
+    "host": "localhost",
+    "port": 31090,
+    "user": "root",
+    "password": "Password123",
+    "database": "jstoredb"
+  },
+  "tableNames": [
+    "t_fin_task"
+  ],
+  "template": "test",
+  "destination": "."
+}
