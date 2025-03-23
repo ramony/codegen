@@ -143,9 +143,10 @@ const main = async () => {
 
 function dbToJava(tables, typeMapping, preSet) {
   return tables.map(it => {
-    const TableName = convertToCamelCase(it.name.replace(/^t_/, ""));
+    const nameShort = it.name.replace(/^t_/, "");
+    const TableName = convertToCamelCase(nameShort);
     const tableName = lowerCaseFirstLetter(TableName);
-    const tablepath = tableName.toLowerCase();
+    const tablepath = convertToCamelCase(nameShort.split("_").slice(0, 2).join("_")).toLowerCase();
     const tableComment = it.comment;
     const tableFields = it.fields.map(col => {
       const Field = convertToCamelCase(col.field);
@@ -179,7 +180,6 @@ function dbToJava(tables, typeMapping, preSet) {
       result["table" + pre] = tableName + pre;
       result["Table" + pre] = TableName + pre;
     }
-    //console.log(JSON.stringify(result))
     return result;
   })
 }
