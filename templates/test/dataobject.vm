@@ -1,0 +1,29 @@
+$!package("dal.$!{tablepath}")
+$!save("dal/$!{tablepath}/$!{TableName}DO.java")
+
+#set($tableFields = $filter($tableFields, ['id']))
+$!importTypes($tableFields)
+
+
+/***
+ * $!{tableComment}
+ */
+public class $!{TableName}DO {
+  #foreach( $it in $tableFields )
+    private ${it.type} ${it.field};
+  #end
+
+
+  #foreach( $it in $tableFields )
+    // $!{it.fieldComment}
+    public void ${it.setField}(${it.type} ${it.field}) {
+      this.${it.field} = ${it.field};
+    }
+
+    public void ${it.getField}(}) {
+      return this.${it.field};
+    }
+
+    
+  #end
+}

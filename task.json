@@ -10,5 +10,6 @@
     "t_fin_task"
   ],
   "template": "test",
-  "destination": "."
+  "dist": "dist",
+  "prefixPackage": "com.niu"
 }

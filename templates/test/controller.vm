@@ -1,5 +1,3 @@
 public class $!{TableName} {
-  #foreach( $it in $tableFields )
-    private ${it.type} ${it.field}
-  #end
+  
 }
