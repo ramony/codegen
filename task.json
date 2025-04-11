@@ -7,8 +7,8 @@
     "database": "testdb"
   },
   "tableNames": [
-    "t_test_task1",
-    "t_test_task2"
+    "t_test_task_k1",
+    "t_test_task_k2"
   ],
   "preSet": [
     "Controller",

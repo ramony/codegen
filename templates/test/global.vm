@@ -1,4 +1,0 @@
-#foreach( $it in $tableFields )
-    #set($it.setField = "set${it.Field}")
-    #set($it.getField = "get${it.Field}")
-#end
