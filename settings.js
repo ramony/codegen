@@ -28,7 +28,7 @@ public class $!{TableController} {\n\
   \n\
 }',
     dataobject: '\
- $!package("dal.$!{tablepath}")\n\
+$!package("dal.$!{tablepath}")\n\
 $!save("dal/$!{tablepath}/$!{TableDO}.java")\n\
 \n\
 #set($tableFields = $filter($tableFields, ["id"]))\n\

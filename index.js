@@ -1,6 +1,7 @@
 import path from 'path';
 import Mysql from './lib/mysql.js';
 import io from './lib/io.js';
+import typeMapping from './lib/typeMapping.js';
 import velocityjs from 'velocityjs';
 import settings from './settings.js';
 
@@ -42,27 +43,33 @@ const main = async () => {
   const tablesInfo = await loadTables(db, taskConfig.tableNames);
   await db.close();
 
-  const vmFiles = listFile(vmFolder).filter((file) => path.extname(file) === '.vm' && file != "global.vm");
-
-  const globalCotent = readFile(path.join(vmFolder, "global.vm"))
+  const vmFiles = listFile(templatePath).filter((file) => path.extname(file) === '.vm');
+  let globalCotent = null;
   const templates = []
   for (const vmFile of vmFiles) {
-    let vmContent = readFile(path.join(vmFolder, vmFile));
-    vmContent = globalCotent + "\n\n" + vmContent;
-    templates.push({ vmFile, vmContent })
+    let vmContent = readFile(path.join(templatePath, vmFile));
+    if (vmFile == 'global.vm') {
+      globalCotent = vmContent;
+    } else {
+      templates.push({ vmFile, vmContent })
+    }
   }
 
-  const typeMapping = readJsonFile(path.join("./config/typeMapping.json"))
+  if (globalCotent) {
+    templates.forEach(t => {
+      t.vmContent = globalCotent + '\n\n' + t.vmContent;
+    })
+  }
 
   for (const tableInfo of tablesInfo) {
-    const context = dbToJava(tableInfo, typeMapping, config.preSet);
+    const context = dbToJava(tableInfo, typeMapping, taskConfig.preSet);
     console.log(`\n开始处理表:${context.name}`)
     for (const template of templates) {
       context.save = (fileName) => {
         context.dist = fileName;
       }
       context.package = (pkg) => {
-        return "package " + config.prefixPackage + "." + pkg + ";";
+        return "package " + taskConfig.prefixPackage + "." + pkg + ";";
       }
       let output = velocityjs.render(template.vmContent, context);
       if (!context.dist) {
@@ -74,7 +81,7 @@ const main = async () => {
       }
 
       console.log(`模板${template.vmFile}开始处理`);
-      writeFile(path.join(config.dist, config.prefixPackage.replace(/\./g, '/'), context.dist), output);
+      writeFile(path.join(taskConfig.dist, taskConfig.prefixPackage.replace(/\./g, '/'), context.dist), output);
     }
   }
 
