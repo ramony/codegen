@@ -1,6 +1,8 @@
 import path from 'path';
 import Mysql from './lib/mysql.js';
+import io from './lib/io.js';
 import velocityjs from 'velocityjs';
+import settings from './settings.js';
 
 import { convertToCamelCase, lowerCaseFirstLetter, formatCode } from "./lib/strings.js";
 import { readFile, readJsonFile, writeFile, listFile } from "./lib/files.js";
@@ -14,19 +16,32 @@ const loadTables = async (db, tableNames) => {
 }
 
 const main = async () => {
-  const args = process.argv.slice(2);
-  if (args.length == 0) {
-    console.error(`需要task配置文件`);
+  const taskConfigPath = path.join("config", "task.yaml");
+  let [taskConfig, taskConfigExist] = io.tryReadYAML(taskConfigPath);
+  if (!taskConfigExist) {
+    io.mkdir("config");
+    io.writeYAML(taskConfigPath, settings.taskExample)
+    console.error(`已生成task配置文件: ${taskConfigPath}，请先修改`);
     return;
   }
 
-  const config = readJsonFile(args[0]);
-  const db = new Mysql(config.database);
+  const templatePath = path.join("config/templates", taskConfig.templateName);
+  let templateExist = io.exists(templatePath);
+  if (!templateExist) {
+    io.mkdir(templatePath);
+    console.error(`已生成模版配置文件夹: ${taskConfigPath}，请先修改`);
+    for (const key in settings.templateExample) {
+      const testVmFile = path.join(templatePath, key + ".vm")
+      io.write(testVmFile, settings.templateExample[key]);
+    }
+    return;
+  }
+
+  const db = new Mysql(taskConfig.database);
   await db.connect();
-  const tablesInfo = await loadTables(db, config.tableNames);
+  const tablesInfo = await loadTables(db, taskConfig.tableNames);
   await db.close();
 
-  const vmFolder = path.join("templates", config.template);
   const vmFiles = listFile(vmFolder).filter((file) => path.extname(file) === '.vm' && file != "global.vm");
 
   const globalCotent = readFile(path.join(vmFolder, "global.vm"))
