@@ -62,9 +62,9 @@ const main = async () => {
   }
 
   for (const tableInfo of tablesInfo) {
-    const context = dbToJava(tableInfo, typeMapping, taskConfig.preSet);
-    console.log(`\n开始处理表:${context.name}`)
+    console.log(`\n开始处理表:${tableInfo.name}`)
     for (const template of templates) {
+      const context = dbToJava(tableInfo, typeMapping, taskConfig);
       context.save = (fileName) => {
         context.dist = fileName;
       }
@@ -97,14 +97,16 @@ const defaultContext = {
   }
 }
 
-function dbToJava(tableInfo, typeMapping, preSet) {
+function dbToJava(tableInfo, typeMapping, taskConfig) {
   const { name } = tableInfo;
+  const { author, preSet } = taskConfig;
   const nameShort = name.replace(/^t_/, "");
   const Table = convertToCamelCase(nameShort);
   const table = lowerCaseFirstLetter(Table);
   const tablepath = convertToCamelCase(nameShort.split("_").slice(0, 2).join("_")).toLowerCase();
   const tableComment = tableInfo.comment;
   const tableFields = tableInfo.fields.map(col => {
+    const name = col.field;
     const Field = convertToCamelCase(col.field);
     const setField = 'set' + Field;
     const getField = 'get' + Field;
@@ -124,10 +126,11 @@ function dbToJava(tableInfo, typeMapping, preSet) {
       fullType = "java.lang.Object";
     }
     const type = fullType.split(".").pop()
-    return { ...col, Field, field, fullType, type, fieldComment, setField, getField }
+    return { ...col, name, Field, field, fullType, type, fieldComment, setField, getField }
   })
 
-  const result = { ...defaultContext, name, Table, table, tableComment, tablepath, tableFields };
+  const datetime = new Date().toLocaleString()
+  const result = { ...defaultContext, name, Table, table, tableComment, tablepath, tableFields, author, datetime };
   for (const pre of preSet) {
     result["table" + pre] = table + pre;
     result["Table" + pre] = Table + pre;
